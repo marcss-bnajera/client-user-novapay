@@ -3,37 +3,41 @@ import { Bell } from "lucide-react";
 
 export const Navbar = () => {
     return (
-        <nav className="sticky top-0 z-50 border-b border-emerald-500/20"
-            style={{ background: "linear-gradient(90deg, #060a10 0%, #0a1628 50%, #060a10 100%)", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" }}>
-            <div className="max-w-full mx-auto px-6 h-16 flex items-center justify-between">
+        <nav className="sticky top-0 z-50 bg-gradient-to-r from-[#060a10] via-[#0a1628] to-[#060a10] border-b border-emerald-500/20 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+            <div className="max-w-full mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
 
-                {/* Logo */}
-                <div className="flex items-center gap-3">
-                    <img src={imgLogo} alt="NovaPay Logo" className="h-8 w-auto object-contain drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]" />
-                    <div className="flex flex-col border-l border-slate-700/50 pl-3">
-                        <span className="text-white font-black text-base tracking-tighter leading-none">
+                {/* Logo y Nombre */}
+                <div className="flex items-center gap-2 md:gap-3 pl-14 md:pl-0 transition-all">
+                    <img 
+                        src={imgLogo} 
+                        alt="NovaPay Logo" 
+                        className="h-7 md:h-8 w-auto object-contain drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]" 
+                    />
+                    
+                    <div className="flex flex-col border-l border-slate-700/50 pl-2 md:pl-3">
+                        <span className="text-white font-black text-sm md:text-base tracking-tighter leading-none">
                             NOVA<span className="text-emerald-400">PAY</span>
                         </span>
-                        <span className="text-emerald-500/70 text-[9px] font-bold uppercase tracking-[0.2em]">
+                        <span className="hidden sm:inline-block text-emerald-500/70 text-[9px] font-bold uppercase tracking-[0.2em] mt-0.5">
                             Mi cuenta
                         </span>
                     </div>
                 </div>
 
-                {/* Right */}
-                <div className="flex items-center gap-3">
-                    {/* Notificaciones */}
-                    <button className="relative w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:bg-slate-800/60 transition-all"
-                        style={{ border: "1px solid rgba(30,41,59,0.6)" }}>
+                {/* Notificaciones y Perfil */}
+                <div className="flex items-center gap-2 md:gap-3">
+                    
+                    {/* Botón Notificaciones */}
+                    <button className="relative w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:bg-slate-800/60 border border-slate-700/60 transition-all">
                         <Bell className="w-4 h-4" />
                         <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     </button>
 
                     <div className="h-6 w-px bg-slate-700/50" />
 
-                    {/* Avatar placeholder */}
-                    <div className="w-9 h-9 rounded-xl flex-shrink-0"
-                        style={{ background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)", boxShadow: "0 0 12px rgba(16,185,129,0.3)" }} />
+                    {/* Avatar Placeholder */}
+                    <div className="w-9 h-9 rounded-xl flex-shrink-0 bg-gradient-to-br from-[#10b981] to-[#0d9488] shadow-[0_0_12px_rgba(16,185,129,0.3)]" />
+                    
                 </div>
             </div>
         </nav>
