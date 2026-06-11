@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { AuthPage } from "../../features/auth/pages/AuthPage.jsx";
 import { DashboardPage } from "../layouts/DashboardPage.jsx";
+import { Users } from "../../features/users/components/Users.jsx"
 
 export const AppRoutes = ()=> {
 
@@ -13,8 +14,11 @@ export const AppRoutes = ()=> {
 
             {/* PROTECTED + ROLE */}
             <Route
-                path="/dashboard/*" element={<DashboardPage />}
-            />
+                path="/dashboard/*"
+                element={<DashboardPage />}
+            >
+                <Route path="users" element={<Users />} />
+            </Route>
 
 
             {/* Ruta temporal para pruebas */}

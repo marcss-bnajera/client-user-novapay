@@ -1,5 +1,6 @@
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
+import { Outlet } from "react-router-dom";
 
 export const DashboardContainer = ({ children }) => {
     return (
@@ -15,6 +16,7 @@ export const DashboardContainer = ({ children }) => {
                         style={{ backgroundImage: "radial-gradient(rgba(16,185,129,0.04) 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
                     <div className="relative z-10">
                         {children}
+                        <Outlet />
                     </div>
                 </main>
             </div>
