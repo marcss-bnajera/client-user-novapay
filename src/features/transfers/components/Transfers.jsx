@@ -1,84 +1,120 @@
-import { useState } from "react";
-import { 
-    Send, 
-    ArrowRightLeft, 
-    User, 
-    FileText, 
-    DollarSign, 
-    HelpCircle, 
-    CheckCircle2, 
+import { useState, useEffect } from "react";
+import {
+    Send,
+    ArrowRightLeft,
+    User,
+    FileText,
+    DollarSign,
+    HelpCircle,
+    CheckCircle2,
     AlertCircle,
-    Wallet
+    Wallet,
+    Loader2
 } from "lucide-react";
-
-// Mock de las cuentas del usuario logueado para que pueda seleccionar desde cuál transferir
-const mockUserAccounts = [
-    { id: 1, numero_cuenta: "99203145", balance: 5400.50, tipo: "Monetaria" },
-    { id: 2, numero_cuenta: "11405829", balance: 1250.00, tipo: "Ahorro Programado" }
-];
+import { useAuthStore } from "../../auth/store/authStore";
+import { useAccountsStore } from "../../accounts/store/accountsStore";
+import { useTransfersStore } from "../store/transfersStore";
+import { showSuccess, showError } from "../../../shared/utils/toast";
 
 export const Transfers = () => {
-    // Estados del formulario basados estrictamente en el req.body de tu controlador
+    const { user } = useAuthStore();
+    const { accounts, getMyAccounts } = useAccountsStore();
+    const { makeTransfer, loading } = useTransfersStore();
+
     const [formData, setFormData] = useState({
-        account_origin_id: mockUserAccounts[0].id,
+        account_origin_id: "",
         numero_cuenta_destino: "",
         amount: "",
         description: ""
     });
+    const [activeAccount, setActiveAccount] = useState(null);
+    const [errors, setErrors] = useState({});
+    const [statusMessage, setStatusMessage] = useState(null);
 
-    // Estados para simular la interacción/feedback del usuario
-    const [activeAccount, setActiveAccount] = useState(mockUserAccounts[0]);
-    const [statusMessage, setStatusMessage] = useState(null); // { success: boolean, message: string }
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    useEffect(() => {
+        if (user?.id) {
+            getMyAccounts(user.id).catch((err) => {
+                showError(err?.response?.data?.message || "Error al cargar cuentas");
+            });
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (accounts.length > 0 && !formData.account_origin_id) {
+            setFormData((prev) => ({ ...prev, account_origin_id: accounts[0].id }));
+            setActiveAccount(accounts[0]);
+        }
+    }, [accounts]);
 
     const handleAccountChange = (e) => {
         const accId = Number(e.target.value);
-        const selected = mockUserAccounts.find(acc => acc.id === accId);
+        const selected = accounts.find((acc) => acc.id === accId);
         setActiveAccount(selected);
-        setFormData(prev => ({ ...prev, account_origin_id: accId }));
+        setFormData((prev) => ({ ...prev, account_origin_id: accId }));
+        setErrors((prev) => ({ ...prev, account_origin_id: "" }));
     };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
+        setErrors((prev) => ({ ...prev, [name]: "" }));
         setStatusMessage(null);
 
-        // Validación visual de saldo en el Frontend (Tal como lo hace tu backend antes del update)
-        if (parseFloat(formData.amount) > activeAccount.balance) {
-            setTimeout(() => {
-                setStatusMessage({
-                    success: false,
-                    message: "Saldo insuficiente en la cuenta seleccionada para realizar la transferencia."
-                });
-                setIsSubmitting(false);
-            }, 800);
+        let sanitized = value;
+        if (name === "numero_cuenta_destino") {
+            sanitized = value.replace(/[^0-9]/g, "");
+        }
+        if (name === "amount") {
+            sanitized = value.replace(/[^0-9.]/g, "");
+        }
+        setFormData((prev) => ({ ...prev, [name]: sanitized }));
+    };
+
+    const validate = () => {
+        const newErrors = {};
+        if (!formData.account_origin_id) newErrors.account_origin_id = "Selecciona una cuenta origen";
+        if (!formData.numero_cuenta_destino.trim()) newErrors.numero_cuenta_destino = "Ingresa el número de cuenta destino";
+        else if (!/^\d+$/.test(formData.numero_cuenta_destino)) newErrors.numero_cuenta_destino = "Solo se permiten números";
+
+        if (!formData.amount) newErrors.amount = "Ingresa el monto";
+        else if (isNaN(formData.amount) || Number(formData.amount) <= 0) newErrors.amount = "Ingresa un monto válido";
+        else if (activeAccount && Number(formData.amount) > parseFloat(activeAccount.balance))
+            newErrors.amount = "Saldo insuficiente en la cuenta seleccionada";
+
+        if (!formData.description.trim()) newErrors.description = "El motivo es obligatorio";
+
+        return newErrors;
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setStatusMessage(null);
+        const validationErrors = validate();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
             return;
         }
 
-        // Simulación de respuesta exitosa del Servidor (status 200)
-        setTimeout(() => {
-            setStatusMessage({
-                success: true,
-                message: "¡Transferencia realizada con éxito! Los saldos han sido actualizados."
+        try {
+            await makeTransfer({
+                account_origin_id: Number(formData.account_origin_id),
+                numero_cuenta_destino: formData.numero_cuenta_destino,
+                amount: Number(formData.amount),
+                description: formData.description,
             });
-            setIsSubmitting(false);
-            setFormData({
-                account_origin_id: activeAccount.id,
-                numero_cuenta_destino: "",
-                amount: "",
-                description: ""
-            });
-        }, 1200);
+            showSuccess("¡Transferencia realizada con éxito!");
+            setStatusMessage({ success: true, message: "¡Transferencia realizada con éxito! Los saldos han sido actualizados." });
+            setFormData((prev) => ({ ...prev, numero_cuenta_destino: "", amount: "", description: "" }));
+            if (user?.id) getMyAccounts(user.id);
+        } catch (err) {
+            const message = err?.response?.data?.message || "Error al realizar la transferencia";
+            showError(message);
+            setStatusMessage({ success: false, message });
+        }
     };
 
     return (
         <div className="max-w-xl mx-auto py-8 px-4">
-            
+
             {/* HEADER */}
             <div className="mb-8">
                 <h1 className="text-white text-2xl font-bold tracking-tight mb-1">Transferencias NovaPay</h1>
@@ -96,7 +132,7 @@ export const Transfers = () => {
                         <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
                     </div>
                     <p className="text-slate-400 text-[12px] leading-relaxed">
-                        Las transferencias entre cuentas de **NovaPay** no generan comisión y se liquidan en tiempo real bajo entorno seguro.
+                        Las transferencias entre cuentas NovaPay no generan comisión y se liquidan en tiempo real bajo entorno seguro.
                     </p>
                 </div>
             </div>
@@ -108,8 +144,8 @@ export const Transfers = () => {
                     border: "1px solid rgba(255,255,255,0.03)",
                     boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
                 }}>
-                
-                {/* 1. SELECCIONAR CUENTA ORIGEN */}
+
+                {/* 1. CUENTA ORIGEN */}
                 <div>
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
                         Cuenta de Origen
@@ -121,22 +157,25 @@ export const Transfers = () => {
                             value={formData.account_origin_id}
                             onChange={handleAccountChange}
                             className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] text-slate-200 outline-none transition-all cursor-pointer appearance-none"
-                            style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
+                            style={{ background: "rgba(4,8,16,0.6)", border: errors.account_origin_id ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(30,41,59,0.9)" }}
                         >
-                            {mockUserAccounts.map(acc => (
+                            {accounts.length === 0 && <option value="">Sin cuentas disponibles</option>}
+                            {accounts.map((acc) => (
                                 <option key={acc.id} value={acc.id} className="bg-[#070c14]">
-                                    No. {acc.numero_cuenta} ({acc.tipo}) — Q {acc.balance.toLocaleString("es-GT")}
+                                    No. {acc.numero_cuenta} ({acc.tipo}) — Q {Number(acc.balance).toLocaleString("es-GT")}
                                 </option>
                             ))}
                         </select>
                     </div>
-                    {/* Visualizador de saldo de la cuenta activa */}
-                    <div className="mt-2 text-[12px] text-slate-500 flex justify-between px-1">
-                        <span>Saldo disponible:</span>
-                        <span className="text-emerald-400 font-medium">
-                            Q {activeAccount.balance.toLocaleString("es-GT", { minimumFractionDigits: 2 })}
-                        </span>
-                    </div>
+                    {errors.account_origin_id && <p className="text-red-400 text-[11px] mt-1 ml-1">{errors.account_origin_id}</p>}
+                    {activeAccount && (
+                        <div className="mt-2 text-[12px] text-slate-500 flex justify-between px-1">
+                            <span>Saldo disponible:</span>
+                            <span className="text-emerald-400 font-medium">
+                                Q {Number(activeAccount.balance).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. CUENTA DESTINO */}
@@ -149,16 +188,16 @@ export const Transfers = () => {
                         <input
                             type="text"
                             name="numero_cuenta_destino"
-                            required
                             placeholder="Ej. 99203145"
                             value={formData.numero_cuenta_destino}
                             onChange={handleChange}
                             className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] text-slate-200 placeholder:text-slate-600 outline-none transition-all"
-                            style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
-                            onFocus={(e) => (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
-                            onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
+                            style={{ background: "rgba(4,8,16,0.6)", border: errors.numero_cuenta_destino ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(30,41,59,0.9)" }}
+                            onFocus={(e) => !errors.numero_cuenta_destino && (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
+                            onBlur={(e) => !errors.numero_cuenta_destino && (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
                         />
                     </div>
+                    {errors.numero_cuenta_destino && <p className="text-red-400 text-[11px] mt-1 ml-1">{errors.numero_cuenta_destino}</p>}
                 </div>
 
                 {/* 3. MONTO */}
@@ -169,20 +208,18 @@ export const Transfers = () => {
                     <div className="relative">
                         <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                         <input
-                            type="number"
-                            step="0.01"
+                            type="text"
                             name="amount"
-                            required
-                            min="0.01"
                             placeholder="0.00"
                             value={formData.amount}
                             onChange={handleChange}
                             className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] text-slate-200 placeholder:text-slate-600 outline-none transition-all"
-                            style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
-                            onFocus={(e) => (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
-                            onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
+                            style={{ background: "rgba(4,8,16,0.6)", border: errors.amount ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(30,41,59,0.9)" }}
+                            onFocus={(e) => !errors.amount && (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
+                            onBlur={(e) => !errors.amount && (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
                         />
                     </div>
+                    {errors.amount && <p className="text-red-400 text-[11px] mt-1 ml-1">{errors.amount}</p>}
                 </div>
 
                 {/* 4. DESCRIPCIÓN */}
@@ -194,36 +231,39 @@ export const Transfers = () => {
                         <FileText className="absolute left-3.5 top-3 w-4 h-4 text-slate-600" />
                         <textarea
                             name="description"
-                            required
                             rows="2"
                             placeholder="Ej. Pago de cena, transferencia a cuenta propia..."
                             value={formData.description}
                             onChange={handleChange}
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl text-[13px] text-slate-200 placeholder:text-slate-600 outline-none transition-all resize-none"
-                            style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
-                            onFocus={(e) => (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
-                            onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
+                            style={{ background: "rgba(4,8,16,0.6)", border: errors.description ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(30,41,59,0.9)" }}
+                            onFocus={(e) => !errors.description && (e.target.style.borderColor = "rgba(99,102,241,0.4)")}
+                            onBlur={(e) => !errors.description && (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
                         />
                     </div>
+                    {errors.description && <p className="text-red-400 text-[11px] mt-1 ml-1">{errors.description}</p>}
                 </div>
 
-                {/* BOTÓN DE EJECUCIÓN */}
+                {/* BOTÓN */}
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={loading}
                     className="w-full py-3 mt-2 rounded-xl text-[13px] font-bold text-[#030712] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ 
-                        background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", 
-                        boxShadow: "0 4px 14px rgba(99,102,241,0.25)" 
+                    style={{
+                        background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                        boxShadow: "0 4px 14px rgba(99,102,241,0.25)"
                     }}
                 >
-                    <Send className="w-4 h-4" />
-                    {isSubmitting ? "Procesando transferencia..." : "Transferir Fondos"}
+                    {loading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
+                    ) : (
+                        <><Send className="w-4 h-4" /> Transferir Fondos</>
+                    )}
                 </button>
 
-                {/* NOTIFICACIONES DE FEEDBACK FINALES */}
+                {/* FEEDBACK */}
                 {statusMessage && (
-                    <div className="mt-4 p-4 rounded-xl text-[12.5px] border flex items-start gap-3 animate-fade-in"
+                    <div className="mt-4 p-4 rounded-xl text-[12.5px] border flex items-start gap-3"
                         style={{
                             background: statusMessage.success ? "rgba(16,185,129,0.06)" : "rgba(239,68,68,0.06)",
                             borderColor: statusMessage.success ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
@@ -239,14 +279,12 @@ export const Transfers = () => {
                 )}
             </form>
 
-            {/* SECCIÓN RESPONSIVE */}
             <div className="mt-6 flex items-center justify-between text-[11px] text-slate-600 px-2">
                 <span className="flex items-center gap-1">
                     <HelpCircle className="w-3 h-3" /> ¿Necesitas ayuda?
                 </span>
                 <span>NovaPay Core S.A. 2026</span>
             </div>
-
         </div>
     );
 };
