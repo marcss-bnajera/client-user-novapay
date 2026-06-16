@@ -1,50 +1,8 @@
-import { useState } from "react";
-import { ArrowDownToLine, Calendar, Hash, ChevronDown, ChevronUp, BadgeCheck, Search } from "lucide-react";
-
-const mockDeposits = [
-    {
-        id: 1,
-        cuenta_id: 1,
-        nombre_cuenta: "Cuenta Principal",
-        numero_cuenta: "480123456789",
-        monto: 5000.00,
-        fecha: "2024-05-10T14:30:00Z",
-        estado: "COMPLETADO",
-    },
-    {
-        id: 2,
-        cuenta_id: 1,
-        nombre_cuenta: "Cuenta Principal",
-        numero_cuenta: "480123456789",
-        monto: 1200.50,
-        fecha: "2024-04-22T09:15:00Z",
-        estado: "COMPLETADO",
-    },
-    {
-        id: 3,
-        cuenta_id: 2,
-        nombre_cuenta: "Cuenta de Ahorros",
-        numero_cuenta: "480987654321",
-        monto: 8000.00,
-        fecha: "2024-03-15T11:00:00Z",
-        estado: "COMPLETADO",
-    },
-    {
-        id: 4,
-        cuenta_id: 2,
-        nombre_cuenta: "Cuenta de Ahorros",
-        numero_cuenta: "480987654321",
-        monto: 3500.75,
-        fecha: "2024-02-28T16:45:00Z",
-        estado: "COMPLETADO",
-    },
-];
-
-const mockAccounts = [
-    { id: 0,  nombre_cuenta: "Todas las cuentas", numero_cuenta: "" },
-    { id: 1,  nombre_cuenta: "Cuenta Principal",   numero_cuenta: "480123456789" },
-    { id: 2,  nombre_cuenta: "Cuenta de Ahorros",  numero_cuenta: "480987654321" },
-];
+import { useState, useEffect } from "react";
+import { ArrowDownToLine, Calendar, ChevronDown, ChevronUp, BadgeCheck, Search, Loader2 } from "lucide-react";
+import { useAuthStore } from "../../auth/store/authStore";
+import { useTransactionsStore } from "../../transactions/store/transactionsStore";
+import { showError } from "../../../shared/utils/toast";
 
 const formatBalance = (amount) =>
     `Q ${Number(amount).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -56,30 +14,40 @@ const formatTime = (date) =>
     new Date(date).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
 
 export const Deposits = () => {
-    const [selectedAccount, setSelectedAccount] = useState(0);
-    const [searchTerm, setSearchTerm]           = useState("");
-    const [expandedId, setExpandedId]           = useState(null);
+    const { user } = useAuthStore();
+    const { transactions, loading, getMyTransactions } = useTransactionsStore();
 
-    const filtered = mockDeposits.filter(d => {
-        const matchAccount = selectedAccount === 0 || d.cuenta_id === selectedAccount;
-        const matchSearch  = searchTerm === "" ||
-            d.id.toString().includes(searchTerm) ||
-            d.nombre_cuenta.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.monto.toString().includes(searchTerm);
-        return matchAccount && matchSearch;
-    });
+    const [searchTerm, setSearchTerm] = useState("");
+    const [expandedId, setExpandedId] = useState(null);
 
-    const totalMonto = filtered.reduce((sum, d) => sum + Number(d.monto), 0);
+    useEffect(() => {
+        if (user?.id) {
+            getMyTransactions(user.id).catch((err) => {
+                showError(err?.response?.data?.message || "Error al cargar depósitos");
+            });
+        }
+    }, [user?.id]);
+
+    // Solo mostramos transacciones de tipo "deposit"
+    const deposits = transactions.filter(t => t.type === "deposit");
+
+    const filtered = deposits.filter(d =>
+        searchTerm === "" ||
+        d.id?.toString().includes(searchTerm) ||
+        d.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.amount?.toString().includes(searchTerm)
+    );
+
+    const totalMonto = filtered.reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
     const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id);
 
     return (
         <div className="max-w-4xl mx-auto py-8 px-4">
 
-            {/* HEADER */}
             <div className="mb-8">
                 <h1 className="text-white text-2xl font-bold tracking-tight mb-1">Mis Depósitos</h1>
-                <p className="text-slate-500 text-[13px]">Historial de depósitos realizados en tus cuentas</p>
+                <p className="text-slate-500 text-[13px]">Historial de depósitos recibidos en tus cuentas</p>
             </div>
 
             {/* RESUMEN */}
@@ -90,7 +58,7 @@ export const Deposits = () => {
                         style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                         <ArrowDownToLine className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <p className="text-white font-bold text-lg leading-none mb-1">{filtered.length}</p>
+                    <p className="text-white font-bold text-lg leading-none mb-1">{loading ? "—" : filtered.length}</p>
                     <p className="text-slate-500 text-[11px]">Depósito{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}</p>
                 </div>
                 <div className="rounded-2xl p-5"
@@ -99,48 +67,35 @@ export const Deposits = () => {
                         style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                         <BadgeCheck className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <p className="text-emerald-400 font-bold text-lg leading-none mb-1">{formatBalance(totalMonto)}</p>
+                    <p className="text-emerald-400 font-bold text-lg leading-none mb-1">{loading ? "—" : formatBalance(totalMonto)}</p>
                     <p className="text-slate-500 text-[11px]">Total depositado</p>
                 </div>
             </div>
 
-            {/* FILTROS */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-5">
-
-                {/* Búsqueda */}
-                <div className="relative flex-1">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por ID, cuenta o monto..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] text-slate-200 placeholder:text-slate-600 outline-none transition-all"
-                        style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
-                        onFocus={(e) => (e.target.style.borderColor = "rgba(16,185,129,0.4)")}
-                        onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
-                    />
-                </div>
-
-                {/* Filtro cuenta */}
-                <select
-                    value={selectedAccount}
-                    onChange={(e) => setSelectedAccount(Number(e.target.value))}
-                    className="px-4 py-3 rounded-xl text-[13px] text-slate-200 outline-none transition-all sm:w-56"
-                    style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}>
-                    {mockAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id} style={{ background: "#070c14" }}>
-                            {acc.nombre_cuenta}
-                        </option>
-                    ))}
-                </select>
+            {/* BÚSQUEDA */}
+            <div className="relative mb-5">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                <input
+                    type="text"
+                    placeholder="Buscar por ID, descripción o monto..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] text-slate-200 placeholder:text-slate-600 outline-none transition-all"
+                    style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
+                    onFocus={(e) => (e.target.style.borderColor = "rgba(16,185,129,0.4)")}
+                    onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
+                />
             </div>
 
-            {/* LISTA DE DEPÓSITOS */}
+            {/* LISTA */}
             <div className="rounded-2xl overflow-hidden"
                 style={{ background: "rgba(7,12,20,0.8)", border: "1px solid rgba(16,185,129,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
 
-                {filtered.length === 0 ? (
+                {loading ? (
+                    <div className="flex items-center justify-center py-14">
+                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                    </div>
+                ) : filtered.length === 0 ? (
                     <div className="text-center py-14">
                         <ArrowDownToLine className="w-8 h-8 text-slate-700 mx-auto mb-2" />
                         <p className="text-slate-600 text-[13px]">No se encontraron depósitos.</p>
@@ -151,73 +106,56 @@ export const Deposits = () => {
                             const isExpanded = expandedId === deposit.id;
                             return (
                                 <div key={deposit.id}>
-
-                                    {/* Fila principal */}
                                     <button
                                         onClick={() => toggleExpand(deposit.id)}
                                         className="w-full flex items-center justify-between px-5 py-4 transition-all hover:bg-slate-800/20 text-left">
 
                                         <div className="flex items-center gap-4">
-                                            {/* Icono */}
                                             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                                                 style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                                                 <ArrowDownToLine className="w-4 h-4 text-emerald-400" />
                                             </div>
-
-                                            {/* Info */}
                                             <div>
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="text-white text-[13px] font-semibold">{deposit.nombre_cuenta}</p>
+                                                    <p className="text-white text-[13px] font-semibold">
+                                                        {deposit.description || "Depósito recibido"}
+                                                    </p>
                                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                                                         style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981" }}>
-                                                        {deposit.estado}
+                                                        COMPLETADO
                                                     </span>
                                                 </div>
-                                                <p className="text-slate-500 text-[11px]">{formatDate(deposit.fecha)} · {formatTime(deposit.fecha)}</p>
+                                                <p className="text-slate-500 text-[11px]">
+                                                    {formatDate(deposit.createdAt)} · {formatTime(deposit.createdAt)}
+                                                </p>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-3 flex-shrink-0">
                                             <p className="text-emerald-400 font-bold text-[14px]">
-                                                +{formatBalance(deposit.monto)}
+                                                +{formatBalance(deposit.amount)}
                                             </p>
-                                            {isExpanded
-                                                ? <ChevronUp className="w-4 h-4 text-slate-500" />
-                                                : <ChevronDown className="w-4 h-4 text-slate-500" />
-                                            }
+                                            {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                                         </div>
                                     </button>
 
-                                    {/* Detalle expandido */}
                                     {isExpanded && (
-                                        <div className="px-5 pb-5 pt-1"
-                                            style={{ borderTop: "1px solid rgba(30,41,59,0.5)" }}>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-
-                                                <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl"
-                                                    style={{ background: "rgba(4,8,16,0.5)", border: "1px solid rgba(30,41,59,0.8)" }}>
-                                                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.12em]">ID Depósito</p>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Hash className="w-3.5 h-3.5 text-slate-600" />
-                                                        <p className="text-slate-300 text-[13px] font-mono">#{deposit.id}</p>
-                                                    </div>
-                                                </div>
-
+                                        <div className="px-5 pb-5 pt-1" style={{ borderTop: "1px solid rgba(30,41,59,0.5)" }}>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                                                 <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl"
                                                     style={{ background: "rgba(4,8,16,0.5)", border: "1px solid rgba(30,41,59,0.8)" }}>
                                                     <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.12em]">Fecha y hora</p>
                                                     <div className="flex items-center gap-1.5">
                                                         <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                                                        <p className="text-slate-300 text-[13px]">{formatDate(deposit.fecha)}</p>
+                                                        <p className="text-slate-300 text-[13px]">{formatDate(deposit.createdAt)}</p>
                                                     </div>
                                                 </div>
-
                                                 <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl"
                                                     style={{ background: "rgba(4,8,16,0.5)", border: "1px solid rgba(30,41,59,0.8)" }}>
-                                                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.12em]">Monto</p>
+                                                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.12em]">Monto depositado</p>
                                                     <div className="flex items-center gap-1.5">
                                                         <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" />
-                                                        <p className="text-emerald-400 text-[13px] font-bold">{formatBalance(deposit.monto)}</p>
+                                                        <p className="text-emerald-400 text-[13px] font-bold">{formatBalance(deposit.amount)}</p>
                                                     </div>
                                                 </div>
                                             </div>
