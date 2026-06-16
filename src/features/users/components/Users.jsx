@@ -1,23 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     User, Mail, Phone, MapPin, Briefcase,
-    DollarSign, CreditCard, Shield, Calendar, Edit3
+    DollarSign, CreditCard, Shield, Calendar, Edit3, Loader2
 } from "lucide-react";
+import { useAuthStore } from "../../auth/store/authStore";
+import { useUsersStore } from "../store/usersStore";
 import { UserModal } from "./UserModal";
-
-const mockUser = {
-    nombre: "Carlos",
-    apellido: "Mendoza",
-    username: "cmendoza",
-    email: "carlos.mendoza@gmail.com",
-    dpi: "2891456230101",
-    nit: "1234567-8",
-    telefono: "55551234",
-    direccion: "12 Calle 5-67, Zona 10, Ciudad de Guatemala",
-    nombre_trabajo: "Desarrollador de Software",
-    ingresos_mensuales: 18500.00,
-    createdAt: "2024-03-15",
-};
+import { showError } from "../../../shared/utils/toast";
 
 const InfoField = ({ icon: Icon, label, value }) => (
     <div className="flex flex-col gap-1.5">
@@ -27,7 +16,7 @@ const InfoField = ({ icon: Icon, label, value }) => (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
             style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.8)" }}>
             <Icon className="w-4 h-4 text-slate-600 flex-shrink-0" />
-            <span className="text-slate-400 text-[13px]">{value}</span>
+            <span className="text-slate-400 text-[13px]">{value || "—"}</span>
         </div>
     </div>
 );
@@ -45,10 +34,36 @@ const Divider = () => (
 
 export const Users = () => {
     const [showModal, setShowModal] = useState(false);
+    const { user: authUser } = useAuthStore();
+    const { user, loading, getProfile } = useUsersStore();
 
-    const joinDate = new Date(mockUser.createdAt).toLocaleDateString("es-GT", {
-        year: "numeric", month: "long", day: "numeric"
-    });
+    useEffect(() => {
+        if (authUser?.id) {
+            getProfile(authUser.id).catch((err) => {
+                showError(err?.response?.data?.message || "Error al cargar el perfil");
+            });
+        }
+    }, [authUser?.id]);
+
+    if (loading && !user) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <p className="text-slate-500 text-sm">No se pudo cargar el perfil</p>
+            </div>
+        );
+    }
+
+    const joinDate = user.createdAt
+        ? new Date(user.createdAt).toLocaleDateString("es-GT", { year: "numeric", month: "long", day: "numeric" })
+        : "—";
 
     return (
         <div className="max-w-3xl mx-auto py-8 px-4">
@@ -68,7 +83,7 @@ export const Users = () => {
                 <div className="relative flex-shrink-0">
                     <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-2xl font-black text-white"
                         style={{ background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)", boxShadow: "0 8px 24px rgba(16,185,129,0.3)" }}>
-                        {mockUser.nombre[0]}{mockUser.apellido[0]}
+                        {user.nombre?.[0]}{user.apellido?.[0]}
                     </div>
                     <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2"
                         style={{ borderColor: "#070c14" }} />
@@ -78,14 +93,14 @@ export const Users = () => {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h1 className="text-white text-xl font-bold tracking-tight">
-                            {mockUser.nombre} {mockUser.apellido}
+                            {user.nombre} {user.apellido}
                         </h1>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                             style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#10b981" }}>
                             Activo
                         </span>
                     </div>
-                    <p className="text-slate-500 text-[13px] mb-3">@{mockUser.username}</p>
+                    <p className="text-slate-500 text-[13px] mb-3">@{user.username}</p>
                     <div className="flex flex-wrap gap-3">
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                             <Shield className="w-3 h-3 text-emerald-600" />
@@ -117,12 +132,12 @@ export const Users = () => {
 
                 <SectionTitle>Información personal</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InfoField icon={User}   label="Nombre"   value={mockUser.nombre} />
-                    <InfoField icon={User}   label="Apellido" value={mockUser.apellido} />
-                    <InfoField icon={Mail}   label="Correo"   value={mockUser.email} />
-                    <InfoField icon={Phone}  label="Teléfono" value={mockUser.telefono} />
+                    <InfoField icon={User}   label="Nombre"   value={user.nombre} />
+                    <InfoField icon={User}   label="Apellido" value={user.apellido} />
+                    <InfoField icon={Mail}   label="Correo"   value={user.email} />
+                    <InfoField icon={Phone}  label="Teléfono" value={user.telefono} />
                     <div className="md:col-span-2">
-                        <InfoField icon={MapPin} label="Dirección" value={mockUser.direccion} />
+                        <InfoField icon={MapPin} label="Dirección" value={user.direccion} />
                     </div>
                 </div>
 
@@ -130,8 +145,8 @@ export const Users = () => {
 
                 <SectionTitle>Información laboral</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InfoField icon={Briefcase}  label="Lugar de trabajo"   value={mockUser.nombre_trabajo} />
-                    <InfoField icon={DollarSign} label="Ingresos mensuales" value={`Q ${Number(mockUser.ingresos_mensuales).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`} />
+                    <InfoField icon={Briefcase}  label="Lugar de trabajo"   value={user.nombre_trabajo} />
+                    <InfoField icon={DollarSign} label="Ingresos mensuales" value={user.ingresos_mensuales ? `Q ${Number(user.ingresos_mensuales).toLocaleString("es-GT", { minimumFractionDigits: 2 })}` : "—"} />
                 </div>
 
                 <Divider />
@@ -140,9 +155,9 @@ export const Users = () => {
                     Datos de identificación
                 </SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InfoField icon={CreditCard} label="DPI"      value={mockUser.dpi} />
-                    <InfoField icon={CreditCard} label="NIT"      value={mockUser.nit} />
-                    <InfoField icon={User}       label="Username" value={mockUser.username} />
+                    <InfoField icon={CreditCard} label="DPI"      value={user.dpi} />
+                    <InfoField icon={CreditCard} label="NIT"      value={user.nit} />
+                    <InfoField icon={User}       label="Username" value={user.username} />
                 </div>
             </div>
 
@@ -150,7 +165,7 @@ export const Users = () => {
                 <UserModal
                     isOpen={showModal}
                     onClose={() => setShowModal(false)}
-                    user={mockUser}
+                    user={user}
                 />
             )}
         </div>
