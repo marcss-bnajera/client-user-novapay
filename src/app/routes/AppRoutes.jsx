@@ -1,7 +1,8 @@
 import { Routes, Route } from "react-router-dom";
 import { AuthPage } from "../../features/auth/pages/AuthPage.jsx";
+import { ProtectedRoute } from "../router/ProtectedRoute.jsx";
 import { DashboardPage } from "../layouts/DashboardPage.jsx";
-import { Users } from "../../features/users/components/Users.jsx"
+import { Users } from "../../features/users/components/Users.jsx";
 import { Accounts } from "../../features/accounts/components/Accounts.jsx";
 import { Cards } from "../../features/cards/components/Cards.jsx";
 import { Passbooks } from "../../features/passbooks/components/Passbooks.jsx";
@@ -14,21 +15,23 @@ import { Shoppings } from "../../features/shoppings/components/Shoppings.jsx";
 import { Transactions } from "../../features/transactions/components/Transactions.jsx";
 import { Transfers } from "../../features/transfers/components/Transfers.jsx";
 
-export const AppRoutes = ()=> {
-
-    return(
+export const AppRoutes = () => {
+    return (
         <Routes>
 
             {/* PUBLIC */}
-            <Route path="/" element={<AuthPage/>} />
+            <Route path="/" element={<AuthPage />} />
 
-
-            {/* PROTECTED + ROLE */}
+            {/* PROTECTED */}
             <Route
                 path="/dashboard/*"
-                element={<DashboardPage />}
+                element={
+                    <ProtectedRoute>
+                        <DashboardPage />
+                    </ProtectedRoute>
+                }
             >
-                <Route path="/dashboard/*" element={<Dashboard />} />
+                <Route index element={<Dashboard />} />
                 <Route path="users" element={<Users />} />
                 <Route path="accounts" element={<Accounts />} />
                 <Route path="cards" element={<Cards />} />
@@ -42,9 +45,7 @@ export const AppRoutes = ()=> {
                 <Route path="transfers" element={<Transfers />} />
             </Route>
 
-
-            {/* Ruta temporal para pruebas */}
             <Route path="*" element={<h1>Página no encontrada</h1>} />
         </Routes>
     );
-}
+};

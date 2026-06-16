@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Mail, ArrowLeft, KeyRound } from "lucide-react";
+import { Mail, ArrowLeft, KeyRound, Loader2, CheckCircle2 } from "lucide-react";
+import { forgotPassword } from "../../../shared/api/auth";
 
 import imgUno from "../../../assets/img/carrusel_cuatro.png";
 import imgDos from "../../../assets/img/carrusel_cinco.png";
@@ -16,6 +17,11 @@ export const ForgotPasswordForm = ({ onSwitch }) => {
     const [prev, setPrev] = useState(null);
     const intervalRef = useRef(null);
 
+    const [email, setEmail] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState(false);
+
     useEffect(() => {
         intervalRef.current = setInterval(() => {
             setCurrent((c) => {
@@ -27,6 +33,29 @@ export const ForgotPasswordForm = ({ onSwitch }) => {
         }, 4500);
         return () => clearInterval(intervalRef.current);
     }, []);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!email.trim()) {
+            setError("Ingresa tu correo electrónico");
+            return;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setError("Ingresa un correo válido");
+            return;
+        }
+        setLoading(true);
+        setError("");
+        try {
+            await forgotPassword(email);
+            setSuccess(true);
+        } catch (err) {
+            setError(err?.response?.data?.message || "Error al enviar el correo");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 overflow-hidden">
@@ -60,7 +89,7 @@ export const ForgotPasswordForm = ({ onSwitch }) => {
 
             {/* FORMULARIO */}
             <div className="absolute inset-0 z-[10] flex items-center justify-center px-4">
-                <div style={{ width: "100%", maxWidth: 400, background: "rgba(7,12,20,0.85)", border: "1px solid rgba(16,185,129,0.15)", borderRadius: 24, padding: "40px 36px", backdropFilter: "blur(24px)", boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)", animation: "formIn 0.6s ease both" }}>
+                <form onSubmit={handleSubmit} style={{ width: "100%", maxWidth: 400, background: "rgba(7,12,20,0.85)", border: "1px solid rgba(16,185,129,0.15)", borderRadius: 24, padding: "40px 36px", backdropFilter: "blur(24px)", boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)", animation: "formIn 0.6s ease both" }}>
 
                     {/* Header */}
                     <div className="text-center mb-8">
@@ -72,35 +101,59 @@ export const ForgotPasswordForm = ({ onSwitch }) => {
                         <p className="text-slate-500 text-[13px]">Te enviaremos un enlace a tu correo</p>
                     </div>
 
-                    {/* Email */}
-                    <div className="mb-6">
-                        <label className="block text-[10px] font-bold text-emerald-500 uppercase tracking-[0.15em] mb-2">
-                            Correo electrónico
-                        </label>
-                        <div className="relative group">
-                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-400 transition-colors">
-                                <Mail className="w-4 h-4" />
-                            </div>
-                            <input
-                                type="email"
-                                placeholder="correo@ejemplo.com"
-                                className="w-full pl-10 pr-4 py-3 text-[13px] rounded-xl text-slate-200 placeholder:text-slate-600 outline-none transition-all duration-200"
-                                style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
-                                onFocus={(e) => (e.target.style.borderColor = "rgba(16,185,129,0.4)")}
-                                onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
-                            />
+                    {/* Error */}
+                    {error && (
+                        <div className="mb-5 px-4 py-3 rounded-xl text-sm text-red-400"
+                            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                            {error}
                         </div>
-                    </div>
+                    )}
+
+                    {/* Éxito */}
+                    {success ? (
+                        <div className="mb-5 px-4 py-4 rounded-xl flex items-center gap-3"
+                            style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                            <p className="text-emerald-400 text-sm">Si tu correo está registrado, recibirás un enlace de recuperación en breve.</p>
+                        </div>
+                    ) : (
+                        <div className="mb-6">
+                            <label className="block text-[10px] font-bold text-emerald-500 uppercase tracking-[0.15em] mb-2">
+                                Correo electrónico
+                            </label>
+                            <div className="relative group">
+                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-400 transition-colors">
+                                    <Mail className="w-4 h-4" />
+                                </div>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => { setError(""); setEmail(e.target.value); }}
+                                    placeholder="correo@ejemplo.com"
+                                    className="w-full pl-10 pr-4 py-3 text-[13px] rounded-xl text-slate-200 placeholder:text-slate-600 outline-none transition-all duration-200"
+                                    style={{ background: "rgba(4,8,16,0.6)", border: "1px solid rgba(30,41,59,0.9)" }}
+                                    onFocus={(e) => (e.target.style.borderColor = "rgba(16,185,129,0.4)")}
+                                    onBlur={(e) => (e.target.style.borderColor = "rgba(30,41,59,0.9)")}
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Submit */}
-                    <button type="submit"
-                        className="w-full py-3 rounded-xl font-bold text-[13.5px] text-[#030712] transition-all duration-200 active:scale-[0.98] mb-5"
-                        style={{ background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.25)" }}>
-                        Enviar correo
-                    </button>
+                    {!success && (
+                        <button type="submit" disabled={loading}
+                            className="w-full py-3 rounded-xl font-bold text-[13.5px] text-[#030712] flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed mb-5"
+                            style={{ background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)", boxShadow: "0 4px 20px rgba(16,185,129,0.25)" }}>
+                            {loading ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                            ) : (
+                                "Enviar correo"
+                            )}
+                        </button>
+                    )}
 
                     {/* Volver */}
-                    <div className="text-center">
+                    <div className="text-center mt-4">
                         <p className="text-slate-600 text-[12.5px] mb-2">¿Ya recordaste tu contraseña?</p>
                         <button type="button" onClick={onSwitch}
                             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-emerald-500 hover:text-emerald-400 transition-colors">
@@ -119,7 +172,7 @@ export const ForgotPasswordForm = ({ onSwitch }) => {
                             }} />
                         ))}
                     </div>
-                </div>
+                </form>
             </div>
         </div>
     );
