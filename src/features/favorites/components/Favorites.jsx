@@ -1,28 +1,39 @@
-import { useState } from "react";
-import { Star, Plus, Search, Trash2, Edit3, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Star, Plus, Search, Trash2, Edit3, User, Loader2 } from "lucide-react";
+import { useAuthStore } from "../../auth/store/authStore";
+import { useFavoritesStore } from "../store/favoritesStore";
+import { showSuccess, showError } from "../../../shared/utils/toast";
 import { FavoriteModal } from "./FavoriteModal";
 
-const mockFavorites = [
-    { id: 1, usuario_id: 1, numero_cuenta_favorito: "480111222333", alias: "Mamá" },
-    { id: 2, usuario_id: 1, numero_cuenta_favorito: "480444555666", alias: "Juan del trabajo" },
-    { id: 3, usuario_id: 1, numero_cuenta_favorito: "480777888999", alias: "Arrendador" },
-    { id: 4, usuario_id: 1, numero_cuenta_favorito: "480123456000", alias: "Papá" },
-];
-
 export const Favorites = () => {
-    const [favorites, setFavorites]     = useState(mockFavorites);
-    const [searchTerm, setSearchTerm]   = useState("");
-    const [showModal, setShowModal]     = useState(false);
-    const [selected, setSelected]       = useState(null);
+    const { user } = useAuthStore();
+    const { favorites, loading, getFavorites, addFavorite, updateFavoriteAlias, removeFavorite } = useFavoritesStore();
 
-    const filtered = favorites.filter(f =>
-        f.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.numero_cuenta_favorito.includes(searchTerm)
+    const [searchTerm, setSearchTerm] = useState("");
+    const [showModal, setShowModal]   = useState(false);
+    const [selected, setSelected]     = useState(null);
+
+    useEffect(() => {
+        if (user?.id) {
+            getFavorites(user.id).catch((err) => {
+                showError(err?.response?.data?.message || "Error al cargar favoritos");
+            });
+        }
+    }, [user?.id]);
+
+    const filtered = favorites.filter((f) =>
+        f.alias?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.numero_cuenta_favorito?.includes(searchTerm)
     );
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (!window.confirm("¿Eliminar este favorito?")) return;
-        setFavorites(prev => prev.filter(f => f.id !== id));
+        try {
+            await removeFavorite(id, user.id);
+            showSuccess("Favorito eliminado");
+        } catch (err) {
+            showError(err?.response?.data?.message || "Error al eliminar favorito");
+        }
     };
 
     const handleEdit = (favorite) => {
@@ -35,22 +46,20 @@ export const Favorites = () => {
         setShowModal(true);
     };
 
-    const handleSave = (data) => {
-        if (selected) {
-            // Editar alias
-            setFavorites(prev => prev.map(f => f.id === selected.id ? { ...f, alias: data.alias } : f));
-        } else {
-            // Agregar nuevo
-            const newFav = {
-                id: Date.now(),
-                usuario_id: 1,
-                numero_cuenta_favorito: data.numero_cuenta_favorito,
-                alias: data.alias,
-            };
-            setFavorites(prev => [...prev, newFav]);
+    const handleSave = async (data) => {
+        try {
+            if (selected) {
+                await updateFavoriteAlias(selected.id, { alias: data.alias }, user.id);
+                showSuccess("Alias actualizado");
+            } else {
+                await addFavorite({ usuario_id: user.id, ...data });
+                showSuccess("Favorito agregado");
+            }
+            setShowModal(false);
+            setSelected(null);
+        } catch (err) {
+            showError(err?.response?.data?.message || "Error al guardar favorito");
         }
-        setShowModal(false);
-        setSelected(null);
     };
 
     return (
@@ -78,7 +87,7 @@ export const Favorites = () => {
                     <Star className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                    <p className="text-white font-bold text-[16px]">{favorites.length} favorito{favorites.length !== 1 ? "s" : ""}</p>
+                    <p className="text-white font-bold text-[16px]">{loading ? "—" : `${favorites.length} favorito${favorites.length !== 1 ? "s" : ""}`}</p>
                     <p className="text-slate-500 text-[12px]">Cuentas guardadas para transferencias</p>
                 </div>
             </div>
@@ -102,14 +111,20 @@ export const Favorites = () => {
             <div className="rounded-2xl overflow-hidden"
                 style={{ background: "rgba(7,12,20,0.8)", border: "1px solid rgba(16,185,129,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
 
-                {filtered.length === 0 ? (
+                {loading ? (
+                    <div className="flex items-center justify-center py-14">
+                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                    </div>
+                ) : filtered.length === 0 ? (
                     <div className="text-center py-14">
                         <Star className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                        <p className="text-slate-600 text-[13px]">No se encontraron favoritos.</p>
+                        <p className="text-slate-600 text-[13px]">
+                            {searchTerm ? "No se encontraron favoritos." : "Aún no tienes cuentas favoritas."}
+                        </p>
                     </div>
                 ) : (
                     <div className="divide-y" style={{ borderColor: "rgba(30,41,59,0.5)" }}>
-                        {filtered.map(fav => (
+                        {filtered.map((fav) => (
                             <div key={fav.id}
                                 className="flex items-center justify-between px-5 py-4 hover:bg-slate-800/20 transition-all gap-4">
 
@@ -117,14 +132,14 @@ export const Favorites = () => {
                                 <div className="flex items-center gap-4 min-w-0">
                                     <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white font-bold text-[14px]"
                                         style={{ background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)", boxShadow: "0 4px 12px rgba(16,185,129,0.2)" }}>
-                                        {fav.alias[0].toUpperCase()}
+                                        {fav.alias?.[0]?.toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-white text-[14px] font-semibold truncate">{fav.alias}</p>
                                         <div className="flex items-center gap-1.5 mt-0.5">
                                             <User className="w-3 h-3 text-slate-600 flex-shrink-0" />
                                             <p className="text-slate-500 text-[11px] font-mono truncate">
-                                                **** **** {fav.numero_cuenta_favorito.slice(-4)}
+                                                **** **** {fav.numero_cuenta_favorito?.slice(-4)}
                                             </p>
                                         </div>
                                     </div>
